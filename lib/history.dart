@@ -15,7 +15,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List historyData = [];
   bool isLoading = true;
 
-  final String baseUrl = "http://192.168.0.103:8000";
+  final String baseUrl = "http://192.168.0.102:8081";
 
   @override
   void initState() {

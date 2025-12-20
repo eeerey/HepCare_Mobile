@@ -12,7 +12,7 @@ import 'package:http/http.dart'
 // - 'http://10.0.2.2:5000/api'  (Jika menggunakan Android Emulator)
 // - 'http://127.0.0.1:5000/api' (Jika menggunakan iOS Simulator atau web)
 // - 'http://[IP_LOKAL_PC_ANDA]:5000/api' (Jika menggunakan device fisik/ponsel)
-const String API_BASE_URL = 'http://192.168.0.103:8000/api';
+const String API_BASE_URL = 'http://192.168.0.102:8081/api';
 // =======================================================================
 
 // =======================================================================

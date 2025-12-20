@@ -411,7 +411,7 @@ class _ArticleCardDynamicState extends State<ArticleCardDynamic> {
   Future<void> _fetchArticle() async {
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.0.103:8000/api/artikel'),
+        Uri.parse('http://192.168.0.102:8081/api/artikel'),
       );
 
       if (response.statusCode == 200) {

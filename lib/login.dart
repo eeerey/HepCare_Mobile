@@ -99,7 +99,7 @@ class _HepCareLoginPageState extends State<HepCareLoginPage> {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    const String apiUrl = 'http://192.168.0.103:8000/api/login';
+    const String apiUrl = 'http://192.168.0.102:8081/api/login';
 
     try {
       final response = await http.post(
@@ -144,7 +144,7 @@ class _HepCareLoginPageState extends State<HepCareLoginPage> {
       }
       _showStatusDialog(
         false,
-        "Koneksi Gagal. Pastikan server berjalan di http://192.168.0.103:8000. Error: $e",
+        "Koneksi Gagal. Pastikan server berjalan di http://192.168.0.102:8081. Error: $e",
       );
     }
   }

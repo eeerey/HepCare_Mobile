@@ -37,7 +37,7 @@ class _PemetaanPageState extends State<PemetaanPage> {
       // 2. PASTIKAN Port sesuai dengan app.run(port=...) di Flask
       // 3. PASTIKAN Route sesuai dengan @map_bp.route(...) di Flask
       const String baseUrl =
-          "http://192.168.0.103:8000"; // Kembali ke 5000 jika Flask default
+          "http://192.168.0.102:8081"; // Kembali ke 5000 jika Flask default
       const String endpoint = "/api/mobile/peta";
 
       final response = await http

@@ -222,7 +222,7 @@ class _QuestionScreenState extends State<QuestionScreen> {
       };
 
       final response = await http.post(
-        Uri.parse('http://192.168.0.103:8000/api/cdc-screening'),
+        Uri.parse('http://192.168.0.102:8081/api/cdc-screening'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(requestBody),
       );
