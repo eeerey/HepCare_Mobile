@@ -1,22 +1,15 @@
 import 'package:flutter/material.dart';
-
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
-
+import '../widgets/navbar.dart';
+import 'api.dart'; // Import centralized API client
+import 'artikel.dart';
+import 'rumahsakit.dart';
+import 'pemetaan.dart';
+import 'kuisioner.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Tambahkan ini
 
 // Import file pendukung
-
-import '../widgets/navbar.dart';
-
-import 'artikel.dart';
-
-import 'rumahsakit.dart';
-
-import 'pemetaan.dart';
-
-import 'kuisioner.dart';
 
 class Leandigpage extends StatefulWidget {
   final String username;
@@ -30,6 +23,10 @@ class Leandigpage extends StatefulWidget {
 class _LeandigpageState extends State<Leandigpage> {
   int _selectedIndex = 0;
 
+  bool _isProfileLoading = true;
+  String? _photoUrl;
+  String _fullName = '';
+
   static const Color primaryColor = Color(0xFF0D98A7);
 
   void _onItemTapped(int index) {
@@ -40,6 +37,52 @@ class _LeandigpageState extends State<Leandigpage> {
 
   void _navigateToPage(Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserProfile();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    setState(() => _isProfileLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    final String? authToken =
+        prefs.getString('jwt_token') ?? prefs.getString('access_token');
+    if (authToken == null) {
+      setState(() => _isProfileLoading = false);
+      return;
+    }
+    try {
+      final url = Uri.parse('${Api.baseUrl}/api/profile');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      debugPrint('Landing Profile API Status: ${response.statusCode}');
+      debugPrint('Landing Profile API Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('Landing Photo URL: ${data['photoUrl']}');
+        setState(() {
+          _fullName = data['fullName'] ?? data['username'] ?? '';
+          _photoUrl = data['photoUrl'];
+          _isProfileLoading = false;
+        });
+      } else {
+        debugPrint('Landing profile fetch failed: ${response.statusCode}');
+        setState(() => _isProfileLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile in landing: $e');
+      if (mounted) setState(() => _isProfileLoading = false);
+    }
   }
 
   @override
@@ -79,18 +122,26 @@ class _LeandigpageState extends State<Leandigpage> {
                       ),
                     ),
 
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 18,
-
                       backgroundColor: Colors.white,
-
-                      child: Icon(
-                        Icons.person_outline,
-
-                        color: primaryColor,
-
-                        size: 24,
-                      ),
+                      child: _isProfileLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : (_photoUrl != null && _photoUrl!.isNotEmpty)
+                          ? CircleAvatar(
+                              radius: 16,
+                              backgroundImage: NetworkImage(_photoUrl!),
+                              backgroundColor: Colors.transparent,
+                            )
+                          : const Icon(
+                              Icons.person_outline,
+                              color: primaryColor,
+                              size: 24,
+                            ),
                     ),
                   ],
                 ),
@@ -129,12 +180,31 @@ class _LeandigpageState extends State<Leandigpage> {
                     ),
                   ),
 
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 35,
-
                     backgroundColor: primaryColor,
-
-                    child: Icon(Icons.person, color: Colors.white, size: 35),
+                    child: _isProfileLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : (_photoUrl != null && _photoUrl!.isNotEmpty)
+                        ? ClipOval(
+                            child: Image.network(
+                              _photoUrl!,
+                              width: 70,
+                              height: 70,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 35,
+                                  ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 35,
+                          ),
                   ),
                 ],
               ),
@@ -411,7 +481,7 @@ class _ArticleCardDynamicState extends State<ArticleCardDynamic> {
   Future<void> _fetchArticle() async {
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.0.102:8081/api/artikel'),
+        Uri.parse('http://192.168.1.3:8081/api/artikel'),
       );
 
       if (response.statusCode == 200) {

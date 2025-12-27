@@ -8,7 +8,7 @@ import 'dart:convert';
 
 // Ganti dengan IP Address lokal komputer Anda dan port Flask (biasanya 5000)
 // Contoh: 'http://192.168.1.100:5000/rumahsakit'
-const String FLASK_API_BASE_URL = 'http://192.168.0.102:8081/rumahsakit';
+const String FLASK_API_BASE_URL = 'http://192.168.1.3:8081/rumahsakit';
 // Catatan: 10.0.2.2 adalah alias untuk localhost di emulator Android.
 // Jika menggunakan perangkat fisik, GANTI dengan IP komputer Anda.
 

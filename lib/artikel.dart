@@ -10,7 +10,7 @@ const Color _primaryColor = Color(0xFF0D98A7);
 const Color _backgroundColor = Color(0xFFF7F9FC);
 
 // URL Dasar API (Pastikan IP ini benar untuk Emulator)
-const String _baseUrlApi = 'http://192.168.0.102:8081/api';
+const String _baseUrlApi = 'http://192.168.1.3:8081/api';
 
 // =========================================================================
 // BAGIAN 1: MODEL DATA ARTIKEL

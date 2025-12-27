@@ -12,7 +12,7 @@ import 'package:http/http.dart'
 // - 'http://10.0.2.2:5000/api'  (Jika menggunakan Android Emulator)
 // - 'http://127.0.0.1:5000/api' (Jika menggunakan iOS Simulator atau web)
 // - 'http://[IP_LOKAL_PC_ANDA]:5000/api' (Jika menggunakan device fisik/ponsel)
-const String API_BASE_URL = 'http://192.168.0.102:8081/api';
+const String API_BASE_URL = 'http://192.168.1.3:8081/api';
 // =======================================================================
 
 // =======================================================================
@@ -370,6 +370,12 @@ class _RegistrationPageState extends State<RegistrationPage> {
             ? (value) {
                 if (value == null || value.isEmpty) {
                   return '$hintText tidak boleh kosong';
+                }
+                // --- TAMBAHKAN VALIDASI GMAIL DI SINI ---
+                if (hintText == 'Email') {
+                  if (!value.endsWith('@gmail.com')) {
+                    return 'Email harus menggunakan domain @gmail.com';
+                  }
                 }
                 if (hintText.contains('Password') && value.length < 6) {
                   return 'Password minimal 6 karakter';

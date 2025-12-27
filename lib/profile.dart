@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 // 💡 Import library untuk menyimpan data lokal (token)
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'api.dart'; // Import centralized API client
 // Ganti dengan import yang benar ke EditProfileScreen Anda
 import '../editprofile.dart';
 // 💡 Ganti dengan import ke halaman login/welcome Anda
 import '../login.dart'; // Contoh import ke halaman setelah logout
+import 'settings.dart';
+import 'notification_preferences.dart';
+import 'about_app.dart';
+import 'help_faq.dart';
 
 // Definisi Warna Kustom
 const Color primaryLightBlue = Color(0xFFE3F2FD);
@@ -20,6 +27,58 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isLoading = true;
+  String? _photoUrl;
+  String _username = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserProfile();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    // Coba beberapa key token yang mungkin digunakan
+    final String? authToken =
+        prefs.getString('jwt_token') ?? prefs.getString('access_token');
+    if (authToken == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final url = Uri.parse('${Api.baseUrl}/api/profile');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      debugPrint('Profile API Status: ${response.statusCode}');
+      debugPrint('Profile API Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('Photo URL: ${data['photoUrl']}');
+        setState(() {
+          _username = data['fullName'] ?? data['username'] ?? '';
+          _photoUrl = data['photoUrl'];
+          _isLoading = false;
+        });
+      } else {
+        debugPrint('Profile fetch failed: ${response.statusCode}');
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   // 💡 FUNGSI LOG OUT SESUNGGUHNYA
   Future<void> _handleLogout() async {
     // 1. Tampilkan Dialog Konfirmasi
@@ -146,53 +205,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   child: ClipOval(
-                    child: Image.asset(
-                      'assets/profile_pic.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.person,
-                            size: 80,
-                            color: Colors.grey,
+                    child: _isLoading
+                        ? Center()
+                        : (_photoUrl != null && _photoUrl!.isNotEmpty)
+                        ? Image.network(
+                            _photoUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 80,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                          )
+                        : Image.asset(
+                            'assets/profile_pic.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 80,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 5,
-                  bottom: 5,
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: primaryLightBlue, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      color: hepCareBlue,
-                      size: 20,
-                    ),
                   ),
                 ),
               ],
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 12.0, bottom: 30.0),
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 30.0),
               child: Text(
-                'Raihan',
-                style: TextStyle(
+                _isLoading
+                    ? 'Memuat...'
+                    : (_username.isNotEmpty ? _username : 'Pengguna'),
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
@@ -237,23 +297,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ProfileMenuItem(
                       icon: Icons.settings_outlined,
                       title: 'Setting',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsScreen(),
+                          ),
+                        );
+                      },
                     ),
 
                     ProfileMenuItem(
                       icon: Icons.notifications_none,
                       title: 'Notification Preferences',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const NotificationPreferencesScreen(),
+                          ),
+                        );
+                      },
                     ),
 
                     ProfileMenuItem(
                       icon: Icons.person_outline,
                       title:
                           'Tentang Aplikasi', // Mengganti teks agar lebih bervariasi
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutAppScreen(),
+                          ),
+                        );
+                      },
                     ),
 
                     ProfileMenuItem(
                       icon: Icons.menu_book_outlined,
                       title:
                           'Bantuan & FAQ', // Mengganti teks agar lebih bervariasi
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HelpFaqScreen(),
+                          ),
+                        );
+                      },
                     ),
 
                     // Item Log Out

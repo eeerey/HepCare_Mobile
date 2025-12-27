@@ -3,8 +3,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io'; // 💡 BARU: Untuk tipe File
-import 'package:image_picker/image_picker.dart'; // 💡 BARU: Untuk ambil foto
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'api.dart'; // Pastikan file api.dart berisi class Api dengan baseUrl
 
 // --- KONSTANTA DAN DEFINISI WARNA ---
 const Color primaryLightBlue = Color(0xFFE3F2FD);
@@ -13,11 +14,6 @@ const Color hepCareGreen = Color(0xFF4CAF50);
 const Color buttonBlue = Color(0xFFB3E5FC);
 const Color hepCareRed = Color(0xFFE53935);
 
-// --- KONFIGURASI API ---
-const String API_BASE_URL =
-    'http://192.168.0.102:8081'; // Contoh untuk Android Emulator
-
-// --- WIDGET UTAMA (Stateful) ---
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -32,7 +28,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _currentPhotoUrl;
-  File? _selectedImage; // 💡 BARU: State untuk gambar yang baru dipilih
+  File? _selectedImage;
 
   // CONTROLLERS
   late TextEditingController _nameController;
@@ -63,7 +59,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // --- FUNGSI BARU: AMBIL GAMBAR DARI GALERI ---
+  // --- FUNGSI AMBIL GAMBAR ---
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -72,39 +68,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() {
         _selectedImage = File(pickedFile.path);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Foto profil berhasil dipilih. Tekan Simpan untuk mengunggah.',
-          ),
-          backgroundColor: hepCareGreen,
-        ),
-      );
     }
   }
 
-  // --- FUNGSI HTTP (GET) ---
+  // --- FUNGSI HTTP (GET PROFILE) ---
   Future<void> _fetchUserProfile() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
     final String? authToken = prefs.getString('jwt_token');
 
     if (authToken == null) {
-      // Handle jika tidak ada token (contoh: navigasi ke login)
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    final url = Uri.parse('$API_BASE_URL/api/profile');
-
     try {
       final response = await http.get(
-        url,
+        Uri.parse('${Api.baseUrl}/api/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -121,7 +101,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _phoneController.text = data['phoneNumber'] ?? '';
           _currentPhotoUrl = data['photoUrl'];
 
-          // Memformat tanggal
           String rawDate = data['birthDate'] ?? '';
           if (rawDate.isNotEmpty) {
             try {
@@ -134,28 +113,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _isLoading = false;
         });
       } else {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          // Tampilkan error
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Tampilkan error jaringan
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- FUNGSI BARU: HTTP (MULTI-PART PUT) UNTUK TEKS & FOTO ---
+  // --- FUNGSI SAVE PROFILE ---
   void _handleSaveProfile() async {
     if (!_formKey.currentState!.validate() || _isSaving) return;
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
-    // 1. Re-format Tanggal (DD/MM/YYYY -> YYYY-MM-DD)
     String formattedDateForApi = _dobController.text;
     try {
       DateTime dateObj = DateFormat('dd/MM/yyyy').parse(_dobController.text);
@@ -165,170 +135,241 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     final String? authToken = prefs.getString('jwt_token');
 
-    if (authToken == null) {
-      if (mounted) setState(() => _isSaving = false);
-      return;
-    }
-
-    // 2. Buat permintaan Multipart
-    final url = Uri.parse('$API_BASE_URL/api/profile');
-    var request = http.MultipartRequest('PUT', url)
+    final url = Uri.parse('${Api.baseUrl}/api/profile');
+    var request = http.MultipartRequest('POST', url)
       ..headers['Authorization'] = 'Bearer $authToken';
 
-    // 3. Tambahkan data teks ke fields
     request.fields['fullName'] = _nameController.text;
     request.fields['username'] = _usernameController.text;
     request.fields['email'] = _emailController.text;
     request.fields['birthDate'] = formattedDateForApi;
     request.fields['phoneNumber'] = _phoneController.text;
 
-    // 4. Tambahkan file gambar jika ada yang dipilih
     if (_selectedImage != null) {
       request.files.add(
         await http.MultipartFile.fromPath(
-          'profile_photo', // ⚠️ PASTIKAN NAMA FIELD INI SAMA DENGAN NAMA FIELD DI API FLASK ANDA!
+          'profile_photo',
           _selectedImage!.path,
         ),
       );
-    } else if (_currentPhotoUrl != null && _currentPhotoUrl!.isNotEmpty) {
-      // Jika tidak ada gambar baru, tapi ada gambar lama, kirim URL gambar lama
-      // (Ini tergantung implementasi API, tapi umumnya lebih baik tidak mengirim apa-apa jika tidak berubah)
-      request.fields['photoUrl'] = _currentPhotoUrl!;
     }
 
-    // 5. Kirim Request
     try {
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
-      final responseData = json.decode(response.body);
 
       if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-
-      if (response.statusCode == 200) {
-        // Hapus gambar lokal yang sudah diunggah
-        setState(() {
-          _selectedImage = null;
-        });
-        // Muat ulang data profil untuk mendapatkan URL foto yang baru
-        _fetchUserProfile();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profil dan Foto berhasil diperbarui!'),
-            backgroundColor: hepCareGreen,
-          ),
-        );
-      } else {
-        final errorMsg =
-            responseData['error'] ??
-            'Gagal menyimpan. Kode: ${response.statusCode}';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg), backgroundColor: hepCareRed),
-        );
+        setState(() => _isSaving = false);
+        if (response.statusCode == 200) {
+          _fetchUserProfile();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profil berhasil diperbarui!'),
+              backgroundColor: hepCareGreen,
+            ),
+          );
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error jaringan saat menyimpan: $e'),
-            backgroundColor: hepCareRed,
-          ),
-        );
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // --- FUNGSI DATE PICKER ---
+  // --- FUNGSI DIALOG UBAH PASSWORD (FULL API & NO ERROR) ---
+  void _showChangePasswordDialog() {
+    final TextEditingController oldPasswordController = TextEditingController();
+    final TextEditingController newPasswordController = TextEditingController();
+    final passwordFormKey = GlobalKey<FormState>();
+
+    // Inisialisasi variabel state untuk dialog
+    bool obscureOld = true;
+    bool obscureNew = true;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Ubah Password',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Form(
+                key: passwordFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Field Password Lama
+                    TextFormField(
+                      controller: oldPasswordController,
+                      obscureText: obscureOld,
+                      decoration: InputDecoration(
+                        labelText: 'Password Lama',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureOld
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureOld = !obscureOld;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) =>
+                          value!.isEmpty ? 'Wajib diisi' : null,
+                    ),
+                    const SizedBox(height: 15),
+                    // Field Password Baru
+                    TextFormField(
+                      controller: newPasswordController,
+                      obscureText: obscureNew,
+                      decoration: InputDecoration(
+                        labelText: 'Password Baru',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNew
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureNew = !obscureNew;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) =>
+                          value!.length < 6 ? 'Minimal 6 karakter' : null,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hepCareBlue,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    if (passwordFormKey.currentState!.validate()) {
+                      try {
+                        final prefs = await SharedPreferences.getInstance();
+                        final String? authToken = prefs.getString('jwt_token');
+
+                        // ENDPOINT API (Sesuaikan jika backend berbeda)
+                        final response = await http.post(
+                          Uri.parse('${Api.baseUrl}/api/change-password'),
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer $authToken',
+                          },
+                          body: jsonEncode({
+                            'old_password': oldPasswordController.text,
+                            'new_password': newPasswordController.text,
+                          }),
+                        );
+
+                        if (response.statusCode == 200) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Password berhasil diperbarui'),
+                                backgroundColor: hepCareGreen,
+                              ),
+                            );
+                          }
+                        } else {
+                          final errorMsg =
+                              jsonDecode(response.body)['message'] ??
+                              'Gagal mengubah password';
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(errorMsg),
+                                backgroundColor: hepCareRed,
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Error koneksi ke server'),
+                              backgroundColor: hepCareRed,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _selectDate(BuildContext context) async {
     DateTime initialDate = DateTime.now();
-
     try {
-      final parts = _dobController.text.split('/');
-      if (parts.length == 3) {
-        initialDate = DateFormat('dd/MM/yyyy').parse(_dobController.text);
-      }
+      initialDate = DateFormat('dd/MM/yyyy').parse(_dobController.text);
     } catch (_) {}
-
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: hepCareBlue,
-              onPrimary: Colors.white,
-              onSurface: Colors.black87,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
-
-    if (picked != null && mounted) {
-      setState(() {
-        _dobController.text = DateFormat('dd/MM/yyyy').format(picked);
-      });
-    }
+    if (picked != null)
+      setState(
+        () => _dobController.text = DateFormat('dd/MM/yyyy').format(picked),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-
-    // Menentukan Image Provider:
-    // 1. File yang baru dipilih (_selectedImage)
-    // 2. Network Image dari server (_currentPhotoUrl)
-    // 3. Null (jika tidak ada keduanya)
     ImageProvider? profileImageProvider;
-    if (_selectedImage != null) {
+    if (_selectedImage != null)
       profileImageProvider = FileImage(_selectedImage!);
-    } else if (_currentPhotoUrl != null && _currentPhotoUrl!.isNotEmpty) {
+    else if (_currentPhotoUrl != null && _currentPhotoUrl!.isNotEmpty)
       profileImageProvider = NetworkImage(_currentPhotoUrl!);
-    }
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(color: primaryLightBlue),
+        color: primaryLightBlue,
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // --- HEADER ---
+              // Header
               Padding(
                 padding: EdgeInsets.only(
                   top: screenHeight * 0.07,
-                  left: 16.0,
-                  right: 16.0,
+                  left: 16,
+                  right: 16,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    InkWell(
-                      onTap: () {
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new,
-                          color: Colors.black54,
-                          size: 24,
-                        ),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new),
+                      onPressed: () => Navigator.pop(context),
                     ),
                     const Text.rich(
                       TextSpan(
@@ -349,312 +390,120 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ],
                 ),
               ),
-
-              // Judul Halaman
               const Padding(
-                padding: EdgeInsets.only(top: 24.0, bottom: 20.0),
+                padding: EdgeInsets.symmetric(vertical: 20),
                 child: Text(
                   'Edit Profile',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
-
-              // 💡 AREA FOTO PROFIL (SUDAH INTERAKTIF)
+              // Foto Profil
               Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Container(
-                        color: Colors.grey[300],
-                        child: profileImageProvider != null
-                            ? Image(
-                                image: profileImageProvider,
-                                fit: BoxFit.cover,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Center(
-                                        child: CircularProgressIndicator(
-                                          color: hepCareBlue,
-                                        ),
-                                      );
-                                    },
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(
-                                      Icons.person_off,
-                                      size: 80,
-                                      color: Colors.grey,
-                                    ),
-                              )
-                            : const Icon(
-                                Icons.person,
-                                size: 80,
-                                color: Colors.grey,
-                              ),
-                      ),
-                    ),
+                  CircleAvatar(
+                    radius: 75,
+                    backgroundColor: Colors.white,
+                    backgroundImage: profileImageProvider,
                   ),
-                  Positioned(
-                    right: 5,
-                    bottom: 5,
-                    // 💡 MEMBUNGKUS IKON DENGAN InkWell
-                    child: InkWell(
-                      onTap: _pickImage, // Panggil fungsi pilih gambar
-                      borderRadius: BorderRadius.circular(50),
-                      child: Container(
-                        padding: const EdgeInsets.all(8.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: primaryLightBlue, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: hepCareBlue,
-                          size: 20,
-                        ),
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
                       ),
+                      child: const Icon(Icons.camera_alt, color: hepCareBlue),
                     ),
                   ),
                 ],
               ),
-
-              // Nama (Loading)
-              Padding(
-                padding: const EdgeInsets.only(top: 12.0, bottom: 30.0),
-                child: Text(
-                  _nameController.text.isEmpty && _isLoading
-                      ? 'Memuat...'
-                      : _nameController.text,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-
-              // --- Bagian Form Input ---
+              const SizedBox(height: 30),
+              // Form Input
               Container(
-                width: double.infinity,
-                margin: const EdgeInsets.symmetric(horizontal: 20.0),
-                padding: const EdgeInsets.all(25.0),
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: _isLoading
-                    ? const Center(
-                        child: Column(
-                          children: [
-                            CircularProgressIndicator(color: hepCareBlue),
-                            SizedBox(height: 10),
-                            Text(
-                              'Memuat data profil...',
-                              style: TextStyle(color: hepCareBlue),
-                            ),
-                          ],
-                        ),
-                      )
+                    ? const Center(child: CircularProgressIndicator())
                     : Form(
                         key: _formKey,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            // Nama
-                            const Text(
-                              'Nama Lengkap',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            CustomTextFieldWithController(
+                          children: [
+                            CustomTextField(
                               controller: _nameController,
-                              validator: (value) => value!.isEmpty
-                                  ? 'Nama tidak boleh kosong'
-                                  : null,
+                              label: 'Nama Lengkap',
                             ),
-                            const SizedBox(height: 20),
-
-                            // Email (Read-only)
-                            const Text(
-                              'Email',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            CustomTextFieldWithController(
+                            const SizedBox(height: 15),
+                            CustomTextField(
                               controller: _emailController,
+                              label: 'Email',
                               isReadOnly: true,
-                              validator: (value) =>
-                                  value!.isEmpty || !value.contains('@')
-                                  ? 'Email tidak valid'
-                                  : null,
                             ),
-                            const SizedBox(height: 20),
-
-                            // Tanggal Lahir & Username
+                            const SizedBox(height: 15),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
+                              children: [
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Tanggal Lahir',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      CustomTextFieldWithController(
-                                        controller: _dobController,
-                                        isReadOnly: true,
-                                        suffixIcon: Icons.calendar_today,
-                                        onTap: () => _selectDate(context),
-                                        validator: (value) => value!.isEmpty
-                                            ? 'Tanggal lahir tidak boleh kosong'
-                                            : null,
-                                      ),
-                                    ],
+                                  child: CustomTextField(
+                                    controller: _dobController,
+                                    label: 'Tgl Lahir',
+                                    isReadOnly: true,
+                                    suffixIcon: Icons.calendar_today,
+                                    onTap: () => _selectDate(context),
                                   ),
                                 ),
-                                const SizedBox(width: 15),
-
+                                const SizedBox(width: 10),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Username',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      CustomTextFieldWithController(
-                                        controller: _usernameController,
-                                        validator: (value) => value!.isEmpty
-                                            ? 'Username tidak boleh kosong'
-                                            : null,
-                                      ),
-                                    ],
+                                  child: CustomTextField(
+                                    controller: _usernameController,
+                                    label: 'Username',
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
-
-                            // No Telepon
-                            const Text(
-                              'No. Telepon (Opsional)',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            CustomTextFieldWithController(
+                            const SizedBox(height: 15),
+                            CustomTextField(
                               controller: _phoneController,
+                              label: 'No. Telepon',
                               keyboardType: TextInputType.phone,
                             ),
-                            const SizedBox(height: 40),
-
-                            // Tombol Simpan Perubahan
+                            const SizedBox(height: 30),
+                            // Tombol Simpan Profil
                             SizedBox(
                               width: double.infinity,
                               height: 50,
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: _isSaving
                                     ? null
-                                    : _handleSaveProfile, // Panggil _handleSaveProfile
-                                icon: _isSaving
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.black54,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.save,
-                                        color: Colors.black54,
-                                      ),
-                                label: Text(
+                                    : _handleSaveProfile,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: buttonBlue,
+                                ),
+                                child: Text(
                                   _isSaving
                                       ? 'Menyimpan...'
                                       : 'Simpan Perubahan',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: buttonBlue,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
+                                  style: const TextStyle(color: Colors.black87),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 15),
-
+                            const SizedBox(height: 10),
                             // Tombol Ubah Password
                             SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: ElevatedButton(
-                                onPressed: () {
-                                  // TODO: Navigasi ke halaman Ubah Password
-                                  debugPrint('Navigasi ke Ubah Password');
-                                },
+                                onPressed: _showChangePasswordDialog,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryLightBlue.withOpacity(
-                                    0.8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
+                                  backgroundColor: primaryLightBlue,
                                 ),
                                 child: const Text(
                                   'Ubah Password',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.black87,
-                                  ),
+                                  style: TextStyle(color: Colors.black87),
                                 ),
                               ),
                             ),
@@ -662,7 +511,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                       ),
               ),
-              SizedBox(height: screenHeight * 0.05),
+              const SizedBox(height: 50),
             ],
           ),
         ),
@@ -671,65 +520,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
-// --- WIDGET KUSTOM FIELD (Tidak ada perubahan) ---
-class CustomTextFieldWithController extends StatelessWidget {
+class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
+  final String label;
   final bool isReadOnly;
   final IconData? suffixIcon;
   final VoidCallback? onTap;
-  final String? Function(String?)? validator;
   final TextInputType? keyboardType;
 
-  const CustomTextFieldWithController({
+  const CustomTextField({
     super.key,
     required this.controller,
+    required this.label,
     this.isReadOnly = false,
     this.suffixIcon,
     this.onTap,
-    this.validator,
     this.keyboardType,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      readOnly: isReadOnly,
-      onTap: onTap,
-      validator: validator,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 16),
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 10,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 5),
+        TextFormField(
+          controller: controller,
+          readOnly: isReadOnly,
+          onTap: onTap,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.grey[100],
+            suffixIcon: suffixIcon != null ? Icon(suffixIcon, size: 20) : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
         ),
-        filled: true,
-        fillColor: isReadOnly ? Colors.grey[50] : Colors.grey[100],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 1.0),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: hepCareBlue, width: 2.0),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: hepCareRed, width: 1.0),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: hepCareRed, width: 2.0),
-        ),
-        suffixIcon: suffixIcon != null
-            ? Icon(suffixIcon, color: Colors.black54)
-            : null,
-      ),
+      ],
     );
   }
 }

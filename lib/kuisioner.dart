@@ -107,9 +107,17 @@ class StartScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: kPrimaryBlue),
-                    onPressed: () => Navigator.pop(context),
+                  Container(
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    constraints: const BoxConstraints(
+                      maxHeight: 200,
+                      maxWidth: 250,
+                    ),
+                    child: Image.asset(
+                      'assets/logo.png', // Pastikan path ini benar
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const Text(
                     "Kuisioner",
@@ -222,7 +230,7 @@ class _QuestionScreenState extends State<QuestionScreen> {
       };
 
       final response = await http.post(
-        Uri.parse('http://192.168.0.102:8081/api/cdc-screening'),
+        Uri.parse('http://192.168.1.3:8081/api/cdc-screening'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(requestBody),
       );

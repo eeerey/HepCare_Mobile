@@ -15,7 +15,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List historyData = [];
   bool isLoading = true;
 
-  final String baseUrl = "http://192.168.0.102:8081";
+  final String baseUrl = "http://192.168.1.3:8081";
 
   @override
   void initState() {
@@ -41,6 +41,8 @@ class _HistoryPageState extends State<HistoryPage> {
         if (mounted) {
           setState(() {
             historyData = json.decode(response.body);
+            // Reverse agar terbaru ditampilkan pertama
+            historyData = (historyData as List).reversed.toList();
             isLoading = false;
           });
         }
@@ -62,7 +64,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Colors.blue;
   }
 
-  void _showDetail(Map<String, dynamic> item) {
+  void _showDetail(Map<String, dynamic> item, int seq) {
     String riskLabel = item['risk_level'] ?? "Tidak Diketahui";
 
     showModalBottomSheet(
@@ -90,7 +92,7 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                "Detail Pemeriksaan #${item['id']}",
+                "Detail Pemeriksaan #$seq",
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -229,7 +231,7 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Icon(Icons.assignment, color: _getRiskColor(riskLabel)),
         ),
         title: Text(
-          "Pemeriksaan #${item['id']}",
+          "Pemeriksaan #${index + 1}",
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
@@ -256,7 +258,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => _showDetail(item),
+        onTap: () => _showDetail(item, index + 1),
       ),
     );
   }

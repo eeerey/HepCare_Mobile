@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
-// PENTING: Import file halaman yang baru dibuat
+import 'package:firebase_core/firebase_core.dart';
 import '/home.dart';
-// Catatan: Ganti 'nama_proyek_anda' dengan nama proyek Flutter Anda (dilihat di pubspec.yaml)
+import 'fcm_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    print('Firebase init error: $e');
+  }
+
+  // Initialize FCM Service
+  try {
+    await FcmService.initialize();
+  } catch (e) {
+    print('FCM init error: $e');
+  }
+
   runApp(const MyApp());
 }
 

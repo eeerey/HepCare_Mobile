@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="google_app_id">1:123456789:android:abcdef1234567890</string>
+    <string name="google_api_key">AIzaSyDummyKeyForTesting1234567890</string>
+    <string name="google_crash_reporting_api_key">AIzaSyDummyKeyForTesting1234567890</string>
+    <string name="google_storage_bucket">hepcare-project.appspot.com</string>
+    <string name="project_id">hepcare-project</string>
+    <string name="google_analytics_screen_name"></string>
+    <string name="google_analytics_web_const"></string>
+    <string name="com.google.android.gms.version">@integer/google_play_services_version</string>
+</resources>
